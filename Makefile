@@ -13,34 +13,27 @@
 # limitations under the License.
 
 REGISTRY_NAME=quay.io/k8scsi
-IMAGE_NAME=hostpathplugin
+IMAGE_NAME=nfsplugin
 IMAGE_VERSION=canary
 IMAGE_TAG=$(REGISTRY_NAME)/$(IMAGE_NAME):$(IMAGE_VERSION)
 REV=$(shell git describe --long --tags --dirty)
 
-.PHONY: all flexadapter nfs hostpath iscsi clean hostpath-container
-
-all: flexadapter nfs hostpath iscsi
+.PHONY: all nfs clean nfs-container push
 
 test:
-	go test github.com/kubernetes-csi/drivers/pkg/... -cover
-	go vet github.com/kubernetes-csi/drivers/pkg/...
-flexadapter:
-	if [ ! -d ./vendor ]; then dep ensure -vendor-only; fi
-	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o _output/flexadapter ./app/flexadapter
+	go test github.com/kubernetes-csi/csi-driver-nfs/pkg/... -cover
+	go vet github.com/kubernetes-csi/csi-driver-nfs/pkg/...
+
 nfs:
 	if [ ! -d ./vendor ]; then dep ensure -vendor-only; fi
-	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o _output/nfsplugin ./app/nfsplugin
-hostpath:
-	if [ ! -d ./vendor ]; then dep ensure -vendor-only; fi
-	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-X github.com/kubernetes-csi/drivers/pkg/hostpath.vendorVersion=$(REV) -extldflags "-static"' -o _output/hostpathplugin ./app/hostpathplugin
-hostpath-container: hostpath
-	docker build -t $(IMAGE_TAG) -f ./app/hostpathplugin/Dockerfile .
-push: hostpath-container
+	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o _output/nfsplugin ./app/
+
+nfs-container: nfs
+	docker build -t $(IMAGE_TAG) -f ./Dockerfile .
+
+push: nfs-container
 	docker push $(IMAGE_TAG)
-iscsi:
-	if [ ! -d ./vendor ]; then dep ensure -vendor-only; fi
-	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o _output/iscsiplugin ./app/iscsiplugin
+
 clean:
 	go clean -r -x
 	-rm -rf _output
